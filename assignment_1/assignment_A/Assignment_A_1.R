@@ -7,8 +7,6 @@ df <- read.table("assignment_1/data/HSI.txt")
 # Add column name
 names(df) <- "price"    
 
-# Part A.1
-
 # Add another column to indicate the date. Let's assume we started collecting data from 01.01.1997
 start_date <- as.Date("1997-01-01")
 df$date <- seq(from = start_date, by = "week", length.out = nrow(df))

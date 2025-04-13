@@ -18,7 +18,7 @@ rm(list=ls())
 # The average log-likelihood function for the GARCH(1,2) is llik_fun_GARCH_1_2(). 
 # This function is contained in the R file "llik_fun_GARCH_1_2.R". 
 
-source("assignment_1/assignment_1_3/llik_fun_GARCH_1_2.R") 
+source("assignment_1/assignment_A/llik_fun_GARCH_1_2.R") 
 
 ########################
 ############ 1. Load data
