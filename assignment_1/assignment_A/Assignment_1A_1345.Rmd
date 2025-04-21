@@ -1,0 +1,157 @@
+---
+title: "Financial Econometrics - Assignment 1"
+author: "Group 10"
+date: "2025-04-17"
+output: html_document
+---
+```{r}
+# Clear workspace
+rm(list=ls())
+
+# Load necessary packages and files
+library(ggplot2)
+library(tseries)
+library(scales)
+source("llik_fun_GARCH_pq.R") 
+```
+
+############################## Question 1 ###############################
+Plot the HSI index and the corresponding log-returns. Report the sample ACF for the
+log-returns and squared log-returns.
+
+```{r}
+# Read data
+hsi_data <- read.table("HSI.txt")
+
+# Add column name
+names(hsi_data) <- "price"
+# Add another column to indicate the date. Let's assume we started collecting data from 01.01.1997
+start_date <- as.Date("1997-01-01")
+hsi_data$date <- seq(from = start_date, by = "week", length.out = nrow(hsi_data))
+
+# Plot weekly prices
+ggplot(hsi_data, aes(x = date, y = price)) +
+  geom_line(color = "steelblue", linewidth = 0.7) +
+  labs(x = "Year", y = "Price USD", title = "HSI Index Price - Weekly") +
+  theme_minimal()
+  
+```
+```{r}
+# Calculate the log-returns
+hsi_data$log_return <- c(NA, 100 * diff(log(hsi_data$price)))
+```
+
+
+```{r}
+# Plot weekly log-returns
+ggplot(hsi_data, aes(x = date, y = log_return)) +
+  geom_line(na.rm = TRUE, color = "steelblue", linewidth = 0.7) +
+  labs(x = "Year", y = "Log Return (%)", title = "Weekly Log Returns of Stock Price") +
+  theme_minimal()
+```
+
+
+```{r}
+par(mfrow = c(1,2))
+# ACF for weekly log returns
+acf(hsi_data$log_return, na.action = na.pass, main = "")
+
+# ACF for weekly squared log returns
+acf(hsi_data$log_return^2, na.action = na.pass, main = "")
+```
+############################## Question 3 ###############################
+
+Estimate the parameters of a GARCH(1,2) model for the the log-returns of the HSI. Report
+the parameter estimates and plot the filtered conditional variance.
+
+```{r}
+hsi_data <- na.omit(hsi_data)
+x <- hsi_data$log_return
+
+# Choose the initial parameter values for the Newton Raphson optimization
+a1 <- 0.1 # initial value for alpha1
+a2 <- 0.1 # initial value for alpha2
+b <- 0.6  # initial value for beta
+omega <- var(x)*(1-a1-a2-b) # initial value for omega
+
+# Transform intitial values using the inverse of the link funtions
+par_ini <- c(
+  log(omega),
+  log(a1 / (1 - a1)),
+  log(a2 / (1 - a2)),
+  log(b / (1 - b))
+)
+
+# Optimize log-likelihood function
+est <- optim(
+  par = par_ini,
+  fn = function(par) -llik_fun_GARCH_pq(x, par=par, p = 1, q = 2),
+  method = "BFGS",
+  control = list(maxit = 100000)
+)
+```
+
+```{r}
+# Obtain parameter estimates
+omega_hat <- exp(est$par[1])
+alpha1_hat <- exp(est$par[2])/(1+exp(est$par[2]))
+alpha2_hat <- exp(est$par[3])/(1+exp(est$par[3]))
+beta_hat <- exp(est$par[4])/(1+exp(est$par[4]))
+
+theta_hat <- c(omega_hat,alpha1_hat,alpha2_hat,beta_hat)
+cat("The parameter estimates are:")
+round(theta_hat,6)
+
+# Display the log-likelihood. 
+cat("The log-likelihood value is:")
+-est$value*length(x)
+
+# Display the exit flag to see if convergence of the algorithm has been attained
+cat("Exit flag:")
+est$convergence # zero indicates succesfull optimization
+```
+
+```{r}
+# Calculate and plot filtered conditional variance
+n <- length(x)
+sigma2 <- rep(0,n)
+sigma2[1:2] <- var(x)
+
+for(t in 3:n){
+  sigma2[t] = omega_hat + 
+    alpha1_hat*x[t-1]^2 + 
+    alpha2_hat*x[t-2]^2 + 
+    beta_hat*sigma2[t-1]
+}
+
+hsi_data$filtered_var <- sigma2
+
+# Plot filtered conditional variance
+ggplot(hsi_data, aes(x = date, y = filtered_var)) +
+  geom_line(color = "steelblue") +
+  labs(x = "Year", y = "Filtered conditional variance", title = "HSI Filtered conditional variance") +
+  theme_minimal()
+```
+############################## Question 4 ###############################
+Some of your colleagues are worried that the GARCH(1,2) model may not provide a proper
+description of the dynamics of the data. Comment on the specification of the model and
+provide an answer to your colleagues. Justify your answer with appropriate analyses.
+
+```{r}
+# Homoskedasticity test by plotting the ACF of squared residuals
+u <- x/sqrt(sigma2)
+acf(u^2, main="")
+title("ACF squared residuals", line = 0.3)
+
+# Jarque-Bera test on normality assumption of residuals
+jarque.bera.test(u)
+```
+############################## Question 5 ###############################
+Find the GARCH(p,q) that best describes the dynamic properties of the log-returns of the
+DAX market index. Estimate the parameters of each model by ML and compare the filtered
+variances of each model. Justify your choice for “best” GARCH(p,q) model.
+
+```{r}
+
+```
+
