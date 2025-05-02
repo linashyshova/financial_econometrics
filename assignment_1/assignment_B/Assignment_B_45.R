@@ -155,16 +155,16 @@ plot_series(date_returns, VaR, "1% Value-at-Risk of the portfolio", "Loss %")
 
 C_vech <- c(C[1,1], C[1,2], C[2,2])
 
-# Starting value (h=1)
+# Initialize forecast matrix
 sigma_forecast <- matrix(0, nrow = 52, ncol = 3)
-sigma_forecast[1, ] <- C_vech * (1-a_hat-b_hat) + b_hat*VECHt[n, ] 
+sigma_forecast[1, ] <- C_vech * (1 - a_hat - b_hat) + b_hat * VECHt[n, ]  # h = 1
 
-# Forecast h=2 to 52
+# Forecast h = 2 to 52
 for (h in 2:52) {
-  sigma_forecast[h, ] <- C_vech * (1-a_hat-b_hat) + b_hat*sigma_forecast[h-1, ]
+  sigma_forecast[h, ] <- C_vech * (1 - a_hat - b_hat) + b_hat * sigma_forecast[h - 1, ]
 }
 
-# compute portfolio variance forecast
+# compute portfolio variance forecast: w' H w
 w <- c(0.3, 0.7)
 port_var_forecast <- numeric(52)
 for (h in 1:52) {
@@ -174,6 +174,10 @@ for (h in 1:52) {
 
 port_vol_forecast <- sqrt(port_var_forecast)
 
+df_vol <- data.frame(
+  week = 1:52,
+  volatility = sqrt(port_var_forecast)  # convert variance to volatility
+)
 plot(port_vol_forecast, type = "l", 
      main = "Forecasted Portfolio Volatility (Next 52 Weeks)", 
      xlab = "Forecast horizon (weeks)", ylab = "Volatility")
