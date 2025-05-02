@@ -1,13 +1,28 @@
 library(ggplot2)
 library(scales)
 
-# Load Data 
+# --- Load Data ---
 hsi <- read.table("HSI.txt")
 ibex <- read.table("IBEX.txt")
 
 hsi_ret <- diff(log(hsi$V1))
 ibex_ret <- diff(log(ibex$V1))
 T <- length(hsi_ret)
+
+# --- Create Time Index ---
+start_date <- as.Date("1997-01-10")  # adjust as needed
+date_returns <- seq(from = start_date, by = "week", length.out = T)
+
+# --- Plot Helper Function ---
+plot_series <- function(dates, values, ylab_title) {
+  df <- data.frame(date = dates, value = values)
+  ggplot(df, aes(x = date, y = value)) +
+    geom_line(color = "darkblue", linewidth = 0.6) +
+    scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+    labs(x = "Year", y = ylab_title) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+}
 
 # =====================================================================
 #                                1b.1
@@ -61,41 +76,25 @@ for (t in 1:T) {
   cov_hsi_ibex[t] <- Ht[t,1,2]
 }
 
-# HSI conditional variance
-plot(sigma2_hsi, type = "l", col = "darkblue", lwd = 2, ylab = "Variance", xlab = "Time")
-#title(main = "HSI", line = 0.5, cex.main = 1)
-grid()
-
-# IBEX conditional variance
-plot(sigma2_ibex, type = "l", col = "darkblue", lwd = 2, ylab = "Variance", xlab = "Time")
-#title(main = "IBEX", line = 0.5, cex.main = 1)
-grid()
-
-# Conditional covariance
-plot(cov_hsi_ibex, type = "l", col = "darkblue", lwd = 2, ylab = "Covariance", xlab = "Time")
-#title(main = "Covariance (HSI, IBEX)", line = 0.5, cex.main = 1)
-grid()
+# --- Plots 1b.1 ---
+plot_series(date_returns, sigma2_hsi, "HSI Conditional Variance")
+plot_series(date_returns, sigma2_ibex, "IBEX Conditional Variance")
+plot_series(date_returns, cov_hsi_ibex, "Conditional Covariance")
 
 # =====================================================================
-#                                  1b.2
+#                                1b.2
 # =====================================================================
 
 w <- c(0.3, 0.7)
 port_var <- sapply(1:T, function(t) t(w) %*% Ht[t,,] %*% w)
 VaR_1pct <- -qnorm(0.01) * sqrt(port_var)
 
-# Portfolio conditional variance
-plot(port_var, type = "l", col = "darkblue", lwd = 2, ylab = "Variance", xlab = "Time")
-#title(main = "Portfolio Variance", line = 0.5, cex.main = 1)
-grid()
-
-# 1% Value-at-Risk
-plot(VaR_1pct, type = "l", col = "darkblue", lwd = 2, ylab = "VaR", xlab = "Time")
-#title(main = "1% Value-at-Risk", line = 0.5, cex.main = 1)
-grid()
+# --- Plots 1b.2 ---
+plot_series(date_returns, port_var, "Portfolio Conditional Variance")
+plot_series(date_returns, VaR_1pct, "1% Value-at-Risk")
 
 # =====================================================================
-#                                   1b.3
+#                                1b.3
 # =====================================================================
 
 mu <- c(mean(hsi_ret), mean(ibex_ret))
@@ -106,14 +105,24 @@ for (t in 1:T) {
   w_opt[t,] <- temp / sum(temp)
 }
 
-# Optimal weights
-matplot(w_opt, type = "l", col = c("darkblue", "darkred"), lty = 1, lwd = 2,
-        ylab = "Weight", xlab = "Time")
-legend("topright", legend = c("HSI", "IBEX"), col = c("darkblue", "darkred"),
-       lty = 1, lwd = 2)
-grid()
+# --- Plot Optimal Weights ---
+df_w <- data.frame(
+  date = date_returns,
+  HSI = w_opt[,1],
+  IBEX = w_opt[,2]
+)
 
-# Print T+1 weights
-cat("\nOptimal weights at T+1:\n")
-cat("HSI:", round(w_opt[T, 1], 4), "\n")
-cat("IBEX:", round(w_opt[T, 2], 4), "\n")
+library(tidyr)
+df_long <- pivot_longer(df_w, cols = c("HSI", "IBEX"), names_to = "Asset", values_to = "Weight")
+
+ggplot(df_long, aes(x = date, y = Weight, color = Asset)) +
+  geom_line(linewidth = 0.7) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(x = "Year", y = "Optimal Weight") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+# --- Print T+1 weights ---
+cat("Optimal weights at T+1:")
+cat("HSI:", round(w_opt[T, 1], 4))
+cat("IBEX:", round(w_opt[T, 2], 4))
