@@ -13,6 +13,7 @@ rm(list=ls())
 ########################
 install.packages("yfR")
 library(yfR)
+library(ggplot2)
 source("assignment_1/assignment_B/llik_CT_sDVECH.R") 
 
 ########################
@@ -37,18 +38,28 @@ x <- cbind(r_hsi,r_ibex)
 n <- length(r_hsi)
 
 ########################
-############ 2. plot prices and log-returns
+############ 2. Plot prices and log-returns
 ########################
 
-par(mfrow=c(2,2),mar=c(4.1,4.1,1.1,2.1))
-plot(p_hsi,type="l",main = "Prices HSI",ylab="",xlab="")
-grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
-plot(r_hsi,type="l",main = "log-returns HSI",ylab="",xlab="")
-grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
-plot(p_ibex,type="l",main = "Prices IBEX",ylab="",xlab="")
-grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
-plot(r_ibex,type="l",main = "Log-returns IBEX",ylab="",xlab="")
-grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
+# Create date vectors
+start_date <- as.Date("1997-01-01")
+date_prices <- seq(from = start_date, by = "week", length.out = length(p_hsi))
+date_returns <- seq(from = start_date + 7, by = "week", length.out = length(r_hsi))
+
+# Function to plot with years on x axis
+plot_series <- function(dates, values, title, ylab) {
+  df <- data.frame(date = dates, value = values)
+  ggplot(df, aes(x = date, y = value)) +
+    geom_line(color = "blue") +
+    scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+    labs(x = "Year", y = ylab, title = title) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+}
+
+plot_series(date_prices, p_hsi,  "HSI Index Price - Weekly", "HSI Price")
+plot_series(date_returns, r_hsi, "HSI Log-Returns - Weekly", "HSI Return")
+plot_series(date_prices, p_ibex, "IBEX Index Price - Weekly", "IBEX Price")
+plot_series(date_returns, r_ibex,"IBEX Log-Returns - Weekly", "IBEX Return")
 
 ########################
 ############ 3. Initial paramter value for optimization
@@ -107,15 +118,10 @@ var_hsi <- VECHt[,1]
 var_ibex <- VECHt[,3]
 cov_hsi_ibex <- VECHt[,2]
 
-par(mfrow=c(2,2),mar=c(4.1,4.1,1.1,2.1))
-plot(var_hsi, type="l", main = "Conditional variance HSI", ylab="", xlab="")
-grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
-plot(var_ibex, type="l", main = "Conditional variance IBEX", ylab="", xlab="")
-grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
-plot(cov_hsi_ibex, type="l", main = "Conditional covariance", ylab="", xlab="")
-grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
-plot(corrt, type="l", main = "Conditional correlation", ylab="", xlab="")
-grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
+plot_series(date_returns, var_hsi,  "Conditional variance HSI", "HSI Variance")
+plot_series(date_returns, var_ibex, "Conditional variance IBEX", "IBEX Variance")
+plot_series(date_returns, cov_hsi_ibex, "Conditional covariance", "Conditional covariance")
+plot_series(date_returns, corrt,"Conditional correlation", "Conditional correlation")
 
 ########################
 ############ 8. Obtain the conditional variance and the α-VaR at 1% level for the
@@ -123,21 +129,25 @@ grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
 ########################
 
 # Portfolio weights: 30% HSI, 70% IBEX
-w <- c(0.3, 0.7)
+w1 <- 0.3
+w2 <- 0.7
 
-port_var <- numeric(n)
-VaR_1pct <- numeric(n)
+# Initialize vectors to store results
+port_var <- numeric(n)     # Array for conditional portfolio variance
+VaR <- numeric(n)     # Array for 1% VaR
+z_value = qnorm(0.01)
 
-# Loop over time to compute conditional variance and VaR
 for (t in 1:n) {
-  Ht <- matrix(c(VECHt[t,1], VECHt[t,2], VECHt[t,2], VECHt[t,3]), nrow=2)
-  port_var[t] <- t(w) %*% Ht %*% w
-  VaR_1pct[t] <- -2.326 * sqrt(port_var[t])  # Normal 1% quantile ≈ -2.326
+  var_hsi  <- VECHt[t, 1]  
+  covar    <- VECHt[t, 2]   
+  var_ibex <- VECHt[t, 3] 
+  port_var[t] <- w1^2 * var_hsi + w2^2 * var_ibex + 2 * w1 * w2 * covar
+  VaR[t] <- z_value * sqrt(port_var[t])
 }
 
-# Plot results
-par(mfrow=c(2,1),mar=c(4.1,4.1,1.1,2.1))
-plot(sqrt(port_var), type="l", main="Conditional portfolio volatility", ylab="", xlab="")
-grid()
-plot(VaR_1pct, type="l", main="1% VaR for the portfolio", ylab="", xlab="")
-grid()
+# Square root of portfolio conditional variance is volatility
+port_vol = sqrt(port_var)
+
+# Plot portfolio conditional volatility and VaR
+plot_series(date_returns, port_vol, "Conditional portfolio volatility", "Conditional volatility")
+plot_series(date_returns, VaR, "1% VaR of the portfolio", "Loss %")
