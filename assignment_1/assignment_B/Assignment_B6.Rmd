@@ -1,0 +1,170 @@
+```{r}
+### Financial Econometrics assignment 1
+
+rm(list = ls())
+graphics.off()
+cat("\014")
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+source("llik_fun_GARCH_pq.R")
+source("max_SR_portfolio.R")
+```
+
+### return
+```{r}
+prices_HSI <- as.numeric(readLines("HSI.txt"))
+prices_DAX <- as.numeric(readLines("DAX.txt"))
+prices_IBEX <- as.numeric(readLines("IBEX.txt"))
+
+
+compute_log_returns <- function(prices) {
+  return(100 * (log(prices[-1]) - log(prices[-length(prices)])))
+}
+
+log_returns_HSI <- compute_log_returns(prices_HSI)
+log_returns_DAX <- compute_log_returns(prices_DAX)
+log_returns_IBEX <- compute_log_returns(prices_IBEX)
+
+x <- cbind(log_returns_HSI, log_returns_DAX, log_returns_IBEX)
+start_date <- as.Date("1997-01-01")
+date_prices <- seq(from = start_date, by = "week", length.out = length(prices_HSI))
+date_returns <- seq(from = start_date + 7, by = "week", length.out = nrow(x))
+```
+
+
+```{r}
+alpha_ini <- 0.2
+beta_ini <- 0.6
+
+omega_ini1 <- var(x[,1]) * (1 - alpha_ini - beta_ini)
+omega_ini2 <- var(x[,2]) * (1 - alpha_ini - beta_ini)
+omega_ini3 <- var(x[,3]) * (1 - alpha_ini - beta_ini)
+
+par_ini1 <- c(log(omega_ini1), log(alpha_ini / (1 - alpha_ini)), log(beta_ini / (1 - beta_ini)))
+par_ini2 <- c(log(omega_ini2), log(alpha_ini / (1 - alpha_ini)), log(beta_ini / (1 - beta_ini)))
+par_ini3 <- c(log(omega_ini3), log(alpha_ini / (1 - alpha_ini)), log(beta_ini / (1 - beta_ini)))
+
+# MLE
+est1 <- optim(par = par_ini1, fn = function(par) -llik_fun_GARCH_pq(x[,1], par, p = 1, q = 1), method = "BFGS")
+est2 <- optim(par = par_ini2, fn = function(par) -llik_fun_GARCH_pq(x[,2], par, p = 1, q = 1), method = "BFGS")
+est3 <- optim(par = par_ini3, fn = function(par) -llik_fun_GARCH_pq(x[,3], par, p = 1, q = 1), method = "BFGS")
+
+omega_hat1 <- exp(est1$par[1])
+alpha_hat1 <- exp(est1$par[2]) / (1 + exp(est1$par[2]))
+beta_hat1  <- exp(est1$par[3]) / (1 + exp(est1$par[3]))
+
+omega_hat2 <- exp(est2$par[1])
+alpha_hat2 <- exp(est2$par[2]) / (1 + exp(est2$par[2]))
+beta_hat2  <- exp(est2$par[3]) / (1 + exp(est2$par[3]))
+
+omega_hat3 <- exp(est3$par[1])
+alpha_hat3 <- exp(est3$par[2]) / (1 + exp(est3$par[2]))
+beta_hat3  <- exp(est3$par[3]) / (1 + exp(est3$par[3]))
+
+n <- nrow(x)
+s1 <- rep(0, n)
+s2 <- rep(0, n)
+s3 <- rep(0, n)
+
+s1[1] <- var(x[,1])
+s2[1] <- var(x[,2])
+s3[1] <- var(x[,3])
+
+for(t in 2:n){
+  s1[t] <- omega_hat1 + alpha_hat1 * x[t-1,1]^2 + beta_hat1 * s1[t-1]
+  s2[t] <- omega_hat2 + alpha_hat2 * x[t-1,2]^2 + beta_hat2 * s2[t-1]
+  s3[t] <- omega_hat3 + alpha_hat3 * x[t-1,3]^2 + beta_hat3 * s3[t-1]
+}
+
+# sr
+e1 <- x[,1] / sqrt(s1)
+e2 <- x[,2] / sqrt(s2)
+e3 <- x[,3] / sqrt(s3)
+
+# correlation
+residual_matrix <- cbind(e1, e2, e3)
+correlation_matrix <- cor(residual_matrix)
+print(correlation_matrix)
+
+```
+
+```{r}
+n <- nrow(x)
+cov_HSI_DAX  <- numeric(n)
+cov_HSI_IBEX <- numeric(n)
+cov_DAX_IBEX <- numeric(n)
+
+for (t in 1:n) {
+  D_t <- diag(sqrt(c(s1[t], s2[t], s3[t])))
+  H_t <- D_t %*% correlation_matrix %*% D_t
+  cov_HSI_DAX[t]  <- H_t[1, 2]
+  cov_HSI_IBEX[t] <- H_t[1, 3]
+  cov_DAX_IBEX[t] <- H_t[2, 3]
+}
+
+
+df_cov <- data.frame(
+  Date = date_returns,
+  HSI_DAX = cov_HSI_DAX,
+  HSI_IBEX = cov_HSI_IBEX,
+  DAX_IBEX = cov_DAX_IBEX
+)
+
+df_long <- pivot_longer(df_cov, cols = -Date,
+                        names_to = "Pair", values_to = "Covariance")
+
+ggplot(df_long, aes(x = Date, y = Covariance, color = Pair)) +
+  geom_line(size = 0.5) +
+  labs(title = "Conditional Covariances GARCH (CCC-GARCH)",
+       x = "Year", y = "Conditional Covariance") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  scale_color_manual(values = c("HSI_DAX" = "blue",
+                                "HSI_IBEX" = "red",
+                                "DAX_IBEX" = "green")) +
+  theme_grey(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5),
+    legend.title = element_blank(),
+    legend.background = element_rect(fill = "white", color = NA), 
+    legend.key = element_rect(fill = "white", color = NA)
+  )
+```
+
+
+```{r}
+mu_vec <- colMeans(x)
+kt <- matrix(0, nrow = n, ncol = 3)
+
+for (t in 1:n) {
+  D_t <- diag(sqrt(c(s1[t], s2[t], s3[t])))
+  SIGMA_t <- D_t %*% correlation_matrix %*% D_t
+  kt[t, ] <- max_SR_portfolio(mu_vec, SIGMA_t)
+}
+
+df_weights <- data.frame(
+  Date = date_returns,
+  HSI = kt[,1],
+  DAX = kt[,2],
+  IBEX = kt[,3]
+)
+
+df_weights_long <- pivot_longer(df_weights, cols = -Date,
+                                names_to = "Asset", values_to = "Weight")
+
+ggplot(df_weights_long, aes(x = Date, y = Weight, color = Asset)) +
+  geom_line(size = 0.5) +
+  labs(title = "Optimal Sharpe-Ratio Portfolio Weights (CCC-GARCH)",
+       x = "Year", y = "Optimal Weight") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  scale_color_manual(values = c("HSI" = "blue", "DAX" = "red", "IBEX" = "green")) +
+  theme_grey(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5),
+    legend.title = element_blank(),
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.key = element_rect(fill = "white", color = NA)
+  )
+```
