@@ -47,7 +47,6 @@ sim_m_SV <- function(e,par){
   acv_15 <- acf(xa, lag.max = 15, type = "covariance", plot = F)$acf
   
   output <- c(mean(xa), acv_15)
-  print(output)
   return(output)
 }
 
@@ -161,5 +160,5 @@ for(t in 3:n){ # start recursion from t=3 to t=T
 par(mfrow=c(2,1),mar=c(4.1,4.1,1.1,2.1))
 plot(x,type="l", main="Time series",ylab="",xlab="")
 grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
-plot(exp(f/2),type="l",col=2, main="Filtered sigmat SV-AR(2)",ylab="",xlab="")
+plot(exp(f),type="l",col=2, main="Filtered sigmat SV-AR(2)",ylab="",xlab="")
 grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")

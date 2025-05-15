@@ -149,5 +149,5 @@ for(t in 2:n){ # start recursion from t=2 to t=T
 par(mfrow=c(2,1),mar=c(4.1,4.1,1.1,2.1))
 plot(x,type="l", main="Time series",ylab="",xlab="")
 grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
-plot(exp(f/2),type="l",col=2, main="Filtered sigmat ",ylab="",xlab="")
+plot(exp(f),type="l",col=2, main="Filtered sigmat SV",ylab="",xlab="")
 grid(nx = NULL, ny = NULL, col = "lightgray", lty = "dotted")
